@@ -6,6 +6,7 @@
 #include <exception>
 #include <optional>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 
 namespace coro
@@ -59,6 +60,52 @@ protected:
     std::exception_ptr      m_exception_ptr{};
 };
 
+template<typename T>
+struct nullable
+{
+public:
+    using stored_type = std::remove_cv_t<T>;
+
+private:
+    union storage
+    {
+        storage() noexcept {}
+        ~storage() noexcept {}
+        stored_type value;
+        char        pod_data[sizeof(T)];
+    } m_payload;
+    bool m_engaged;
+
+public:
+    nullable() noexcept : m_payload(), m_engaged(false) {}
+    nullable(const nullable&)            = delete;
+    nullable(nullable&&)                 = delete;
+    nullable& operator=(const nullable&) = delete;
+    nullable& operator=(nullable&&)      = delete;
+    ~nullable() noexcept(std::is_nothrow_destructible_v<stored_type>)
+    {
+        if (has_value())
+        {
+            m_payload.value.~stored_type();
+        }
+    }
+
+    template<typename... Args>
+    void emplace(Args&&... args) noexcept(std::is_nothrow_constructible_v<stored_type, Args...>)
+    {
+        new (&m_payload.value) T(static_cast<Args&&>(args)...);
+        m_engaged = true;
+    }
+
+    bool has_value() const noexcept { return m_engaged; }
+
+    stored_type& value() & noexcept { return m_payload.value; }
+
+    const stored_type& value() const& noexcept { return m_payload.value; }
+
+    stored_type&& value() && noexcept { return std::move(m_payload.value); }
+};
+
 template<typename return_type>
 struct promise final : public promise_base
 {
@@ -79,7 +126,7 @@ struct promise final : public promise_base
         }
         else
         {
-            m_return_value = {std::move(value)};
+            m_return_value.emplace(std::move(value));
         }
     }
 
@@ -127,7 +174,7 @@ struct promise final : public promise_base
         {
             if (m_return_value.has_value())
             {
-                return std::move(m_return_value.value());
+                return std::move(m_return_value).value();
             }
         }
 
@@ -136,7 +183,7 @@ struct promise final : public promise_base
 
 private:
     using held_type =
-        std::conditional_t<return_type_is_reference, std::remove_reference_t<return_type>*, std::optional<return_type>>;
+        std::conditional_t<return_type_is_reference, std::remove_reference_t<return_type>*, nullable<return_type>>;
 
     held_type m_return_value{};
 };
