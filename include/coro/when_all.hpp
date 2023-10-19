@@ -276,11 +276,7 @@ public:
 
     auto unhandled_exception() noexcept { m_exception_ptr = std::current_exception(); }
 
-    auto yield_value(return_type&& value) noexcept
-    {
-        m_return_value = std::addressof(value);
-        return final_suspend();
-    }
+    auto return_value(return_type&& value) noexcept { m_return_value = std::addressof(value); }
 
     auto start(when_all_latch& latch) noexcept -> void
     {
@@ -288,7 +284,7 @@ public:
         coroutine_handle_type::from_promise(*this).resume();
     }
 
-    auto return_value() & -> return_type&
+    auto result() & -> return_type&
     {
         if (m_exception_ptr)
         {
@@ -297,7 +293,7 @@ public:
         return *m_return_value;
     }
 
-    auto return_value() && -> return_type&&
+    auto result() && -> return_type&&
     {
         if (m_exception_ptr)
         {
@@ -392,44 +388,11 @@ public:
         }
     }
 
-    auto return_value() & -> decltype(auto)
-    {
-        if constexpr (std::is_void_v<return_type>)
-        {
-            m_coroutine.promise().result();
-            return void_value{};
-        }
-        else
-        {
-            return m_coroutine.promise().return_value();
-        }
-    }
+    auto return_value() & -> decltype(auto) { return m_coroutine.promise().result(); }
 
-    auto return_value() const& -> decltype(auto)
-    {
-        if constexpr (std::is_void_v<return_type>)
-        {
-            m_coroutine.promise().result();
-            return void_value{};
-        }
-        else
-        {
-            return m_coroutine.promise().return_value();
-        }
-    }
+    auto return_value() const& -> decltype(auto) { return m_coroutine.promise().result(); }
 
-    auto return_value() && -> decltype(auto)
-    {
-        if constexpr (std::is_void_v<return_type>)
-        {
-            m_coroutine.promise().result();
-            return void_value{};
-        }
-        else
-        {
-            return m_coroutine.promise().return_value();
-        }
-    }
+    auto return_value() && -> decltype(auto) { return m_coroutine.promise().result(); }
 
 private:
     auto start(when_all_latch& latch) noexcept -> void { m_coroutine.promise().start(latch); }
@@ -445,15 +408,7 @@ static auto make_when_all_task(awaitable a) -> when_all_task<return_type> __ATTR
 template<concepts::awaitable awaitable, typename return_type>
 static auto make_when_all_task(awaitable a) -> when_all_task<return_type>
 {
-    if constexpr (std::is_void_v<return_type>)
-    {
-        co_await static_cast<awaitable&&>(a);
-        co_return;
-    }
-    else
-    {
-        co_yield co_await static_cast<awaitable&&>(a);
-    }
+    co_return co_await static_cast<awaitable&&>(a);
 }
 
 } // namespace detail
