@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.12)
 project(libcoro_test)
 
 set(LIBCORO_TEST_SOURCE_FILES
@@ -26,7 +26,7 @@ if(LIBCORO_FEATURE_NETWORKING)
     )
 endif()
 
-if(LIBCORO_FEATURE_THREADING)
+if(LIBCORO_FEATURE_PLATFORM)
     list(APPEND LIBCORO_TEST_SOURCE_FILES
         bench.cpp
         test_io_scheduler.cpp
